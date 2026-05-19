@@ -13,7 +13,7 @@ $user_id = $is_logged_in ? $_SESSION['application_id'] : null;
     
     <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <!-- ========== HEADER ========== -->
