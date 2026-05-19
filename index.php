@@ -414,10 +414,13 @@ const orderForm = document.getElementById('order-form');
         const message = document.getElementById('message').value.trim();
         const items = buildOrderItems();
 
-        const orderData = { full_name, phone, email, address, message, items };
-        if (isEdit) orderData._method = 'PUT';
+        let body = { full_name, phone, email, address, message, items };
 
-        const url = isEdit ? `/api.php/order/${orderId}` : '/api.php/order';
+
+         let url = isEdit ? `/api.php?route=order&id=${orderId}` : '/api.php?route=order';
+        if (isEdit) body._method = 'PUT';
+
+       
         const method = 'POST'; // всегда POST, PUT эмулируется через _method
 
         statusDiv.innerHTML = '⏳ Отправка...';
@@ -428,7 +431,7 @@ const orderForm = document.getElementById('order-form');
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(orderData)
+                body: JSON.stringify(body)
             });
             const result = await response.json();
             if (response.ok && (result.status === 'ok' || result.status === 'updated')) {
@@ -478,7 +481,15 @@ const orderForm = document.getElementById('order-form');
         else submitOrder(false, null);
     });
     
-    function escapeHtml(str) { /* ... */ }
+    function escapeHtml(str) { 
+         if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
     
     <?php if ($is_logged_in): ?>
     async function loadUserOrders() {
@@ -509,7 +520,7 @@ const orderForm = document.getElementById('order-form');
     
     async function loadOrderForEdit(orderId) {
         try {
-            const response = await fetch(`/api.php/order/${orderId}`);
+            const response = await fetch('/api.php?route=orders');
             const data = await response.json();
             if (data.status === 'ok') {
                 const order = data.order;

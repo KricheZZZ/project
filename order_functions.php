@@ -117,19 +117,13 @@ function createOrder($data, $is_logged_in, $user_id = null) {
             $plain_password = generate_password();
             $password_hash = password_hash($plain_password, PASSWORD_DEFAULT);
 
-            $birth_date = '2000-01-01';
-            $gender = 'male';
-            $biography = '';
-            $contract_accepted = 1;
-
             $stmt = $pdo->prepare("
                 INSERT INTO application 
-                (full_name, phone, email, birth_date, gender, biography, contract_accepted, login, password_hash)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (full_name, phone, email, login, password_hash)
+                VALUES (?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $clean['full_name'], $clean['phone'], $clean['email'],
-                $birth_date, $gender, $biography, $contract_accepted,
                 $login, $password_hash
             ]);
             $application_id = $pdo->lastInsertId();
