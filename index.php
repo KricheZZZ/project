@@ -47,6 +47,7 @@ if (isset($_GET['route'])) {
                 echo json_encode(['errors' => $result['errors']]);
             }
         }
+        // остальные маршруты (PUT, GET) без изменений...
         elseif (($method === 'PUT' || ($method === 'POST' && isset($_GET['_method']))) && isset($_GET['id'])) {
             if (!$is_logged_in) {
                 http_response_code(401);
@@ -299,37 +300,58 @@ if (isset($_GET['route'])) {
         <h2>Калькулятор заказа</h2>
         <p>Рассчитайте стоимость вашего заказа с учётом всех дополнений</p>
     </div>
-    
-    <section id="calculator" class="section">
-    <div class="section-title"><h2>Калькулятор заказа</h2><p>Рассчитайте стоимость своей шаурмы</p></div>
-    <div class="calculator" style="max-width:800px; margin:0 auto;">
-        <div class="form-group">
-            <label>Тип шаурмы</label>
-            <select id="productSelect">
-                <option value="1" data-price="250">Классическая (250 ₽)</option>
-                <option value="2" data-price="280">Острая (280 ₽)</option>
-                <option value="3" data-price="220">Вегетарианская (220 ₽)</option>
-                <option value="4" data-price="350">Дёнер премиум (350 ₽)</option>
-                <option value="5" data-price="300">Дёнер в лепёшке (300 ₽)</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Количество: <span id="quantityVal">1</span> шт.</label>
-            <input type="range" id="quantityRange" min="1" max="10" value="1">
-        </div>
-        <div class="form-group">
-            <label>Дополнительно</label>
-            <div style="display:flex; gap:15px; flex-wrap:wrap;">
-                <label><input type="checkbox" class="extra" data-price="50"> Доп. сыр (+50 ₽)</label>
-                <label><input type="checkbox" class="extra" data-price="30"> Доп. соус (+30 ₽)</label>
-                <label><input type="checkbox" class="extra" data-price="100"> Двойное мясо (+100 ₽)</label>
-                <label><input type="checkbox" class="extra" data-price="150"> Комбо (+150 ₽)</label>
+    <div class="calculator">
+        <form class="calculator-form" id="price-calculator">
+            <div class="form-group">
+                <label for="product">Тип шаурмы</label>
+                <select id="product" name="product">
+                    <option value="1" data-price="250">Классическая (250 ₽)</option>
+                    <option value="2" data-price="280">Острая (280 ₽)</option>
+                    <option value="3" data-price="220">Вегетарианская (220 ₽)</option>
+                    <option value="4" data-price="350">Дёнер премиум (350 ₽)</option>
+                    <option value="5" data-price="300">Дёнер в лепёшке (300 ₽)</option>
+                </select>
             </div>
-        </div>
-        <div class="calculator-result">
-            <h3>Итоговая стоимость</h3>
-            <div class="total-price" id="dynamicTotal">250 ₽</div>
-        </div>
+            <div class="form-group">
+                <label for="quantity">Количество: <span id="quantityValue">1</span> шт.</label>
+                <input type="range" id="quantity" name="quantity" min="1" max="10" value="1">
+            </div>
+            <div class="form-group">
+                <label for="delivery">Доставка</label>
+                <select id="delivery" name="delivery">
+                    <option value="0">Самовывоз (бесплатно)</option>
+                    <option value="150">По району (150 ₽)</option>
+                    <option value="250">По городу (250 ₽)</option>
+                    <option value="400">Срочная доставка (400 ₽)</option>
+                </select>
+            </div>
+            <div class="form-group full-width">
+                <label>Дополнительно</label>
+                <div class="options-group">
+                    <div class="option-checkbox">
+                        <input type="checkbox" id="cheese" name="cheese" value="50">
+                        <label for="cheese">Доп. сыр (+50 ₽)</label>
+                    </div>
+                    <div class="option-checkbox">
+                        <input type="checkbox" id="sauce" name="sauce" value="30">
+                        <label for="sauce">Доп. соус (+30 ₽)</label>
+                    </div>
+                    <div class="option-checkbox">
+                        <input type="checkbox" id="meat" name="meat" value="100">
+                        <label for="meat">Двойное мясо (+100 ₽)</label>
+                    </div>
+                    <div class="option-checkbox">
+                        <input type="checkbox" id="set" name="set" value="150">
+                        <label for="set">Комбо (напиток+картошка) (+150 ₽)</label>
+                    </div>
+                </div>
+            </div>
+            <div class="calculator-result">
+                <h3>Итоговая стоимость</h3>
+                <div class="total-price" id="total-price">250 ₽</div>
+                <p class="hint" id="total-hint">(1 шт. классической × 250 ₽ + доставка 0 ₽)</p>
+            </div>
+        </form>
     </div>
 </section>
 
@@ -412,26 +434,6 @@ if (isset($_GET['route'])) {
 <script>
 
 
-const productSelect = document.getElementById('productSelect');
-const quantityRange = document.getElementById('quantityRange');
-const quantityVal = document.getElementById('quantityVal');
-const extraChecks = document.querySelectorAll('.extra');
-const dynamicTotalSpan = document.getElementById('dynamicTotal');
-
-function updateTotal() {
-    const selectedOption = productSelect.options[productSelect.selectedIndex];
-    let basePrice = parseInt(selectedOption.dataset.price);
-    const qty = parseInt(quantityRange.value);
-    let extras = 0;
-    extraChecks.forEach(cb => { if(cb.checked) extras += parseInt(cb.dataset.price); });
-    const total = (basePrice + extras) * qty;
-    dynamicTotalSpan.innerText = total + ' ₽';
-    quantityVal.innerText = qty;
-}
-productSelect.addEventListener('change', updateTotal);
-quantityRange.addEventListener('input', updateTotal);
-extraChecks.forEach(cb => cb.addEventListener('change', updateTotal));
-updateTotal();
 
 
 
@@ -440,6 +442,14 @@ updateTotal();
 
 
 
+   
+    
+  
+    
+   
+    
+  
+    
 const orderForm = document.getElementById('orderForm');
 const statusDiv = document.getElementById('formStatus');
 const credBlock = document.getElementById('credentialsBlock');
@@ -452,21 +462,18 @@ orderForm.addEventListener('submit', async (e) => {
     const address = document.getElementById('address').value.trim();
     const message = document.getElementById('message').value.trim();
     
-    // Собираем данные заказа из калькулятора
+    // Собираем данные из калькулятора
     const product_id = parseInt(productSelect.value);
-    const quantity = parseInt(quantityRange.value);
+    const quantity = parseInt(quantitySlider.value);
+    const delivery_cost = parseInt(deliverySelect.value);
     const options = {};
-    extraChecks.forEach(cb => {
-        if(cb.checked) {
-            const name = cb.parentElement.innerText.includes('сыр') ? 'cheese' :
-                        cb.parentElement.innerText.includes('соус') ? 'sauce' :
-                        cb.parentElement.innerText.includes('мясо') ? 'meat' : 'set';
-            options[name] = true;
-        }
-    });
+    if (cheeseChk.checked) options.cheese = true;
+    if (sauceChk.checked) options.sauce = true;
+    if (meatChk.checked) options.meat = true;
+    if (setChk.checked) options.set = true;
     
     const orderData = {
-        full_name, phone, email, address, message,
+        full_name, phone, email, address, message, delivery_cost,
         items: [{ product_id, quantity, options }]
     };
     
@@ -486,9 +493,13 @@ orderForm.addEventListener('submit', async (e) => {
             statusDiv.innerHTML = '✅ Заказ принят! С вами свяжутся.';
             statusDiv.className = 'form-message success';
             orderForm.reset();
-            quantityRange.value = 1;
-            extraChecks.forEach(cb => cb.checked = false);
-            updateTotal();
+            quantitySlider.value = 1;
+            cheeseChk.checked = false;
+            sauceChk.checked = false;
+            meatChk.checked = false;
+            setChk.checked = false;
+            deliverySelect.value = '0';
+            calculateTotal();
             if (result.login && result.password) {
                 credBlock.innerHTML = `<h3>Ваши данные для входа</h3>
                     <p><strong>Логин:</strong> ${escapeHtml(result.login)}</p>
@@ -564,18 +575,25 @@ async function loadOrderForEdit(orderId) {
             if(order.items && order.items.length) {
                 const item = order.items[0];
                 productSelect.value = item.product_id;
-                quantityRange.value = item.quantity;
+                quantitySlider.value = item.quantity;
                 const opts = item.options;
-                extraChecks.forEach(cb => {
-                    const label = cb.parentElement.innerText;
-                    if(label.includes('сыр')) cb.checked = !!opts.cheese;
-                    else if(label.includes('соус')) cb.checked = !!opts.sauce;
-                    else if(label.includes('мясо')) cb.checked = !!opts.meat;
-                    else if(label.includes('Комбо')) cb.checked = !!opts.set;
-                });
-                updateTotal();
+                cheeseChk.checked = !!opts.cheese;
+                sauceChk.checked = !!opts.sauce;
+                meatChk.checked = !!opts.meat;
+                setChk.checked = !!opts.set;
+                // установка доставки (нет в order.items, но есть в order.delivery_cost)
+                if(order.delivery_cost !== undefined) {
+                    const deliverySelect = document.getElementById('delivery');
+                    for(let i=0; i<deliverySelect.options.length; i++) {
+                        if(parseInt(deliverySelect.options[i].value) === order.delivery_cost) {
+                            deliverySelect.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                calculateTotal();
             }
-            // Меняем текст кнопки на "Обновить заказ" и добавляем скрытое поле
+            // Меняем поведение формы на обновление
             const submitBtn = orderForm.querySelector('button');
             submitBtn.innerText = 'Обновить заказ';
             if(!document.getElementById('editOrderId')) {
@@ -587,7 +605,6 @@ async function loadOrderForEdit(orderId) {
             } else {
                 document.getElementById('editOrderId').value = orderId;
             }
-            // Переопределяем отправку для обновления
             orderForm.onsubmit = async (e) => {
                 e.preventDefault();
                 const editId = document.getElementById('editOrderId').value;
@@ -597,16 +614,18 @@ async function loadOrderForEdit(orderId) {
                 const address = document.getElementById('address').value.trim();
                 const message = document.getElementById('message').value.trim();
                 const product_id = parseInt(productSelect.value);
-                const quantity = parseInt(quantityRange.value);
+                const quantity = parseInt(quantitySlider.value);
+                const delivery_cost = parseInt(deliverySelect.value);
                 const options = {};
-                extraChecks.forEach(cb => {
-                    const label = cb.parentElement.innerText;
-                    if(label.includes('сыр')) options.cheese = cb.checked;
-                    else if(label.includes('соус')) options.sauce = cb.checked;
-                    else if(label.includes('мясо')) options.meat = cb.checked;
-                    else if(label.includes('Комбо')) options.set = cb.checked;
-                });
-                const updateData = { full_name, phone, email, address, message, items: [{ product_id, quantity, options }], _method: 'PUT' };
+                if (cheeseChk.checked) options.cheese = true;
+                if (sauceChk.checked) options.sauce = true;
+                if (meatChk.checked) options.meat = true;
+                if (setChk.checked) options.set = true;
+                const updateData = {
+                    full_name, phone, email, address, message, delivery_cost,
+                    items: [{ product_id, quantity, options }],
+                    _method: 'PUT'
+                };
                 statusDiv.innerHTML = '⏳ Обновление...';
                 try {
                     const resp = await fetch(`/index.php?route=order&id=${editId}`, {
@@ -645,8 +664,7 @@ loadOrders();
 
 
 
-
-    
+    document.addEventListener('DOMContentLoaded', function() {
    const contactBtn = document.querySelector('.contact-btn');
 const modalOverlay = document.getElementById('modalOverlay');
 const contactModal = document.getElementById('contact-modal');
