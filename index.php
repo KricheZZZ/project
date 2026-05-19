@@ -2,7 +2,106 @@
 session_start();
 $is_logged_in = isset($_SESSION['application_id']);
 $user_id = $is_logged_in ? $_SESSION['application_id'] : null;
-?>
+
+// Если это API-запрос (параметр route)
+if (isset($_GET['route'])) {
+    header('Content-Type: application/json; charset=UTF-8');
+    require_once 'db.php';
+    require_once 'order_functions.php';
+    
+    $method = $_SERVER['REQUEST_METHOD'];
+    $route = $_GET['route'];
+    
+    // Эмуляция PUT через POST + _method
+    if ($method === 'POST' && isset($_POST['_method'])) {
+        $method = strtoupper($_POST['_method']);
+    }
+    $input_json = null;
+    if ($method === 'POST' && empty($_POST)) {
+        $input_json = json_decode(file_get_contents('php://input'), true);
+        if (isset($input_json['_method'])) {
+            $method = strtoupper($input_json['_method']);
+            unset($input_json['_method']);
+        }
+    }
+    
+    if ($route === 'order') {
+        // POST /?route=order - создание заказа
+        if ($method === 'POST') {
+            $data = $input_json ?? $_POST;
+            if (!$data) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Нет данных']);
+                exit;
+            }
+            $result = createOrder($data, $is_logged_in, $user_id);
+            if ($result['success']) {
+                http_response_code(201);
+                echo json_encode([
+                    'status' => 'ok',
+                    'order_id' => $result['order_id'],
+                    'total' => $result['total'],
+                    'login' => $result['generated_login'] ?? null,
+                    'password' => $result['generated_password'] ?? null,
+                ]);
+            } else {
+                http_response_code(400);
+                echo json_encode(['errors' => $result['errors']]);
+            }
+        }
+        // PUT /?route=order&id=123 - обновление
+        elseif (($method === 'PUT' || ($method === 'POST' && isset($_GET['_method']))) && isset($_GET['id'])) {
+            if (!$is_logged_in) {
+                http_response_code(401);
+                echo json_encode(['error' => 'Требуется авторизация']);
+                exit;
+            }
+            $order_id = (int)$_GET['id'];
+            $data = $input_json ?? $_POST;
+            $result = updateOrder($order_id, $data, $user_id);
+            if ($result['success']) {
+                echo json_encode(['status' => 'updated', 'order_id' => $result['order_id'], 'total' => $result['total']]);
+            } else {
+                http_response_code(400);
+                echo json_encode(['errors' => $result['errors']]);
+            }
+        }
+        // GET /?route=order&id=123 - получение заказа
+        elseif ($method === 'GET' && isset($_GET['id'])) {
+            if (!$is_logged_in) {
+                http_response_code(401);
+                echo json_encode(['error' => 'Требуется авторизация']);
+                exit;
+            }
+            $order_id = (int)$_GET['id'];
+            $order = getOrderById($order_id, $user_id);
+            if ($order) {
+                echo json_encode(['status' => 'ok', 'order' => $order]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'Заказ не найден']);
+            }
+        }
+        else {
+            http_response_code(405);
+            echo json_encode(['error' => 'Метод не разрешён']);
+        }
+    }
+    elseif ($route === 'orders' && $method === 'GET') {
+        if (!$is_logged_in) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Требуется авторизация']);
+            exit;
+        }
+        $orders = getUserOrders($user_id);
+        echo json_encode(['status' => 'ok', 'orders' => $orders]);
+    }
+    else {
+        http_response_code(404);
+        echo json_encode(['error' => 'Endpoint не найден']);
+    }
+    exit;
+}?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -414,10 +513,10 @@ const orderForm = document.getElementById('order-form');
         const message = document.getElementById('message').value.trim();
         const items = buildOrderItems();
 
-        let body = { full_name, phone, email, address, message, items };
+        const body = { full_name, phone, email, address, message, items };
 
 
-         let url = isEdit ? `/api.php?route=order&id=${orderId}` : '/api.php?route=order';
+        const url = isEdit ? `/index.php?route=order&id=${orderId}` : '/index.php?route=order';
         if (isEdit) body._method = 'PUT';
 
        
@@ -495,7 +594,7 @@ const orderForm = document.getElementById('order-form');
     async function loadUserOrders() {
         const container = document.getElementById('orders-list');
         try {
-            const response = await fetch('/api.php/orders');
+            const response = await fetch('/index.php?route=orders');
             const data = await response.json();
             if (data.status === 'ok' && data.orders.length) {
                 let html = '<ul>';
