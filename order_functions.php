@@ -4,7 +4,6 @@ require_once 'db.php';
 function validateOrderData($data, &$clean_data) {
     $errors = [];
 
-    // ФИО
     $full_name = trim($data['full_name'] ?? '');
     if (empty($full_name)) {
         $errors['full_name'] = 'Введите ваше имя и фамилию.';
@@ -16,7 +15,6 @@ function validateOrderData($data, &$clean_data) {
         $clean_data['full_name'] = $full_name;
     }
 
-    // Телефон
     $phone = trim($data['phone'] ?? '');
     if (empty($phone)) {
         $errors['phone'] = 'Введите номер телефона.';
@@ -26,7 +24,6 @@ function validateOrderData($data, &$clean_data) {
         $clean_data['phone'] = $phone;
     }
 
-    // Email
     $email = trim($data['email'] ?? '');
     if (empty($email)) {
         $errors['email'] = 'Введите email.';
@@ -36,7 +33,6 @@ function validateOrderData($data, &$clean_data) {
         $clean_data['email'] = $email;
     }
 
-    // Адрес
     $address = trim($data['address'] ?? '');
     if (empty($address)) {
         $errors['address'] = 'Введите адрес доставки.';
@@ -46,7 +42,6 @@ function validateOrderData($data, &$clean_data) {
         $clean_data['address'] = $address;
     }
 
-    // Пожелания (необязательно)
     $message = trim($data['message'] ?? '');
     if (strlen($message) > 1000) {
         $errors['message'] = 'Сообщение не должно превышать 1000 символов.';
@@ -54,7 +49,6 @@ function validateOrderData($data, &$clean_data) {
         $clean_data['message'] = $message;
     }
 
-    // Стоимость доставки
     $delivery_cost = (int)($data['delivery_cost'] ?? 0);
     if ($delivery_cost < 0 || $delivery_cost > 1000) {
         $errors['delivery_cost'] = 'Неверная стоимость доставки';
@@ -62,7 +56,6 @@ function validateOrderData($data, &$clean_data) {
         $clean_data['delivery_cost'] = $delivery_cost;
     }
 
-    // Позиции заказа
     if (!isset($data['items']) || !is_array($data['items']) || empty($data['items'])) {
         $errors['items'] = 'Заказ не может быть пустым.';
     } else {
@@ -91,7 +84,6 @@ function validateOrderData($data, &$clean_data) {
             if (isset($options['set'])) $extra += 150;
 
             $price_per_unit = $base_price + $extra;
-
             $clean_items[] = [
                 'product_id' => $product_id,
                 'quantity' => $quantity,
@@ -105,7 +97,6 @@ function validateOrderData($data, &$clean_data) {
             $clean_data['items'] = $clean_items;
         }
     }
-
     return $errors;
 }
 
@@ -150,14 +141,12 @@ function createOrder($data, $is_logged_in, $user_id = null) {
             $stmt->execute([$clean['full_name'], $clean['phone'], $clean['email'], $application_id]);
         }
 
-        // Расчёт общей стоимости (позиции + доставка)
         $total = 0;
         foreach ($clean['items'] as $item) {
             $total += $item['quantity'] * $item['price_per_unit'];
         }
         $total += $clean['delivery_cost'];
 
-        // Вставка заказа
         $stmt = $pdo->prepare("
             INSERT INTO orders 
             (application_id, session_token, full_name, phone, email, address, message, delivery_cost, total_price, status)
@@ -170,7 +159,6 @@ function createOrder($data, $is_logged_in, $user_id = null) {
         ]);
         $order_id = $pdo->lastInsertId();
 
-        // Вставка позиций
         $stmt_item = $pdo->prepare("
             INSERT INTO order_items (order_id, product_id, quantity, options_json, price_per_unit)
             VALUES (?, ?, ?, ?, ?)
@@ -201,7 +189,6 @@ function updateOrder($order_id, $data, $user_id) {
     $pdo = getDB();
     $pdo->beginTransaction();
     try {
-        // Проверка прав
         $stmt = $pdo->prepare("SELECT application_id FROM orders WHERE id = ?");
         $stmt->execute([$order_id]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -214,14 +201,12 @@ function updateOrder($order_id, $data, $user_id) {
             return ['success' => false, 'errors' => $errors];
         }
 
-        // Расчёт общей стоимости
         $total = 0;
         foreach ($clean['items'] as $item) {
             $total += $item['quantity'] * $item['price_per_unit'];
         }
         $total += $clean['delivery_cost'];
 
-        // Обновление заказа
         $stmt = $pdo->prepare("
             UPDATE orders 
             SET full_name = ?, phone = ?, email = ?, address = ?, message = ?, delivery_cost = ?, total_price = ?
@@ -232,7 +217,6 @@ function updateOrder($order_id, $data, $user_id) {
             $clean['address'], $clean['message'], $clean['delivery_cost'], $total, $order_id
         ]);
 
-        // Удаляем старые позиции и вставляем новые
         $pdo->prepare("DELETE FROM order_items WHERE order_id = ?")->execute([$order_id]);
         $stmt_item = $pdo->prepare("
             INSERT INTO order_items (order_id, product_id, quantity, options_json, price_per_unit)

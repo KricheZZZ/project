@@ -369,7 +369,7 @@ if (isset($_GET['route'])) {
         <div id="formStatus" class="form-message"></div>
     </form>
     <?php if ($is_logged_in): ?>
-    <div class="my-orders">
+    <div class="my-orders" id="myOrdersBlock" style="display: <?= $is_logged_in ? 'block' : 'none' ?>;">
         <h3>Мои заказы</h3>
         <div id="ordersList">Загрузка...</div>
     </div>
@@ -432,8 +432,7 @@ if (isset($_GET['route'])) {
 </div>
 
 <script>
-
-
+// ==================== КАЛЬКУЛЯТОР (старая логика) ====================
 const productSelect = document.getElementById('product');
 const quantitySlider = document.getElementById('quantity');
 const quantityValue = document.getElementById('quantityValue');
@@ -479,26 +478,153 @@ meatChk.addEventListener('change', calculateTotal);
 setChk.addEventListener('change', calculateTotal);
 calculateTotal();
 
-
-
-
-
-
-
-   
-    
-  
-    
-   
-    
-  
-    
+// ==================== ОТПРАВКА ЗАКАЗА ====================
 const orderForm = document.getElementById('orderForm');
 const statusDiv = document.getElementById('formStatus');
 const credBlock = document.getElementById('credentialsBlock');
+const myOrdersBlock = document.getElementById('myOrdersBlock');
+const ordersListDiv = document.getElementById('ordersList');
 
+// Функция escapeHtml
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+// Загрузка списка заказов (вызывается только когда пользователь авторизован)
+async function loadOrders() {
+    if (!ordersListDiv) return;
+    try {
+        const resp = await fetch('./index.php?route=orders');
+        const data = await resp.json();
+        if (data.status === 'ok' && data.orders.length) {
+            let html = '<ul style="list-style:none; padding:0;">';
+            data.orders.forEach(order => {
+                html += `<li class="order-item" data-id="${order.id}">
+                    Заказ №${order.id} от ${new Date(order.created_at).toLocaleString()} — ${order.total_price} ₽
+                </li>`;
+            });
+            html += '</ul>';
+            ordersListDiv.innerHTML = html;
+            document.querySelectorAll('.order-item').forEach(el => {
+                el.addEventListener('click', () => loadOrderForEdit(el.dataset.id));
+            });
+        } else {
+            ordersListDiv.innerHTML = '<p>У вас пока нет заказов.</p>';
+        }
+    } catch(e) {
+        ordersListDiv.innerHTML = '<p>Ошибка загрузки заказов.</p>';
+        console.error(e);
+    }
+}
+
+// Редактирование заказа
+async function loadOrderForEdit(orderId) {
+    try {
+        const resp = await fetch(`./index.php?route=order&id=${orderId}`);
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            const order = data.order;
+            document.getElementById('fullName').value = order.full_name;
+            document.getElementById('phone').value = order.phone;
+            document.getElementById('email').value = order.email;
+            document.getElementById('address').value = order.address;
+            document.getElementById('message').value = order.message || '';
+            if (order.items && order.items.length) {
+                const item = order.items[0];
+                productSelect.value = item.product_id;
+                quantitySlider.value = item.quantity;
+                const opts = item.options || {};
+                cheeseChk.checked = !!opts.cheese;
+                sauceChk.checked = !!opts.sauce;
+                meatChk.checked = !!opts.meat;
+                setChk.checked = !!opts.set;
+                if (order.delivery_cost !== undefined) {
+                    for (let i = 0; i < deliverySelect.options.length; i++) {
+                        if (parseInt(deliverySelect.options[i].value) === order.delivery_cost) {
+                            deliverySelect.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                calculateTotal();
+            }
+            // Переключаем форму в режим редактирования
+            const submitBtn = orderForm.querySelector('button');
+            submitBtn.innerText = 'Обновить заказ';
+            if (!document.getElementById('editOrderId')) {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.id = 'editOrderId';
+                hidden.value = orderId;
+                orderForm.appendChild(hidden);
+            } else {
+                document.getElementById('editOrderId').value = orderId;
+            }
+            // Временно заменяем обработчик отправки на обновление
+            const originalOnSubmit = orderForm.onsubmit;
+            orderForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const editId = document.getElementById('editOrderId').value;
+                const full_name = document.getElementById('fullName').value.trim();
+                const phone = document.getElementById('phone').value.trim();
+                const email = document.getElementById('email').value.trim();
+                const address = document.getElementById('address').value.trim();
+                const message = document.getElementById('message').value.trim();
+                const product_id = parseInt(productSelect.value);
+                const quantity = parseInt(quantitySlider.value);
+                const delivery_cost = parseInt(deliverySelect.value);
+                const options = {};
+                if (cheeseChk.checked) options.cheese = true;
+                if (sauceChk.checked) options.sauce = true;
+                if (meatChk.checked) options.meat = true;
+                if (setChk.checked) options.set = true;
+                const updateData = {
+                    full_name, phone, email, address, message, delivery_cost,
+                    items: [{ product_id, quantity, options }],
+                    _method: 'PUT'
+                };
+                statusDiv.innerHTML = '⏳ Обновление...';
+                try {
+                    const resp = await fetch(`./index.php?route=order&id=${editId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updateData)
+                    });
+                    const res = await resp.json();
+                    if (resp.ok && res.status === 'updated') {
+                        statusDiv.innerHTML = '✅ Заказ обновлён!';
+                        statusDiv.className = 'form-message success';
+                        orderForm.reset();
+                        document.getElementById('editOrderId').remove();
+                        orderForm.querySelector('button').innerText = 'Отправить заказ';
+                        orderForm.onsubmit = originalOnSubmit;
+                        loadOrders();
+                    } else {
+                        statusDiv.innerHTML = '❌ Ошибка обновления';
+                        statusDiv.className = 'form-message error';
+                    }
+                } catch (err) {
+                    statusDiv.innerHTML = '❌ Ошибка сети';
+                    statusDiv.className = 'form-message error';
+                } finally {
+                    setTimeout(() => statusDiv.innerHTML = '', 3000);
+                }
+            };
+            window.scrollTo({ top: document.getElementById('contact').offsetTop - 80, behavior: 'smooth' });
+        }
+    } catch (e) { console.error(e); }
+}
+
+// Основная отправка заказа
 orderForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+
     const full_name = document.getElementById('fullName').value.trim();
     const phone = document.getElementById('phone').value.trim();
     const email = document.getElementById('email').value.trim();
@@ -519,12 +645,12 @@ orderForm.addEventListener('submit', async (e) => {
     };
 
     statusDiv.innerHTML = '⏳ Отправка...';
+    statusDiv.className = 'form-message sending';
     const submitBtn = orderForm.querySelector('button');
     submitBtn.disabled = true;
 
     try {
-        // ОТНОСИТЕЛЬНЫЙ ПУТЬ (работает в любой подпапке)
-        const response = await fetch('index.php?route=order', {
+        const response = await fetch('./index.php?route=order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(orderData)
@@ -549,16 +675,24 @@ orderForm.addEventListener('submit', async (e) => {
             orderForm.reset();
             quantitySlider.value = 1;
             calculateTotal();
+
+            // Если сервер вернул логин/пароль – пользователь только что создан
             if (result.login && result.password) {
                 credBlock.innerHTML = `<h3>Ваши данные для входа</h3>
                     <p><strong>Логин:</strong> ${escapeHtml(result.login)}</p>
                     <p><strong>Пароль:</strong> ${escapeHtml(result.password)}</p>
                     <p><a href="login.php">Войти</a> для редактирования.</p>`;
                 credBlock.style.display = 'block';
+                // Показываем блок "Мои заказы" и загружаем заказы
+                if (myOrdersBlock) myOrdersBlock.style.display = 'block';
+                await loadOrders();
             } else {
                 credBlock.style.display = 'none';
+                // Если пользователь уже был авторизован, просто обновляем список
+                if (myOrdersBlock && myOrdersBlock.style.display !== 'none') {
+                    await loadOrders();
+                }
             }
-            <?php if ($is_logged_in) echo 'loadOrders();'; ?>
         } else {
             let errMsg = 'Ошибка: ';
             if (result.errors) errMsg += Object.values(result.errors).join(' ');
@@ -578,216 +712,16 @@ orderForm.addEventListener('submit', async (e) => {
     }
 });
 
-function escapeHtml(str) {
-    if(!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-        if(m === '&') return '&amp;';
-        if(m === '<') return '&lt;';
-        if(m === '>') return '&gt;';
-        return m;
-    });
-}
-
+// Если пользователь уже авторизован при загрузке страницы – показываем заказы
 <?php if ($is_logged_in): ?>
-async function loadOrders() {
-    const container = document.getElementById('ordersList');
-    try {
-        const resp = await fetch('/index.php?route=orders');
-        const data = await resp.json();
-        if(data.status === 'ok' && data.orders.length) {
-            let html = '<ul style="list-style:none; padding:0;">';
-            data.orders.forEach(order => {
-                html += `<li class="order-item" data-id="${order.id}">
-                    Заказ №${order.id} от ${new Date(order.created_at).toLocaleString()} — ${order.total_price} ₽
-                </li>`;
-            });
-            html += '</ul>';
-            container.innerHTML = html;
-            document.querySelectorAll('.order-item').forEach(el => {
-                el.addEventListener('click', () => loadOrderForEdit(el.dataset.id));
-            });
-        } else {
-            container.innerHTML = '<p>У вас пока нет заказов.</p>';
-        }
-    } catch(e) { container.innerHTML = '<p>Ошибка загрузки заказов.</p>'; }
-}
-
-async function loadOrderForEdit(orderId) {
-    try {
-        const resp = await fetch(`/index.php?route=order&id=${orderId}`);
-        const data = await resp.json();
-        if(data.status === 'ok') {
-            const order = data.order;
-            document.getElementById('fullName').value = order.full_name;
-            document.getElementById('phone').value = order.phone;
-            document.getElementById('email').value = order.email;
-            document.getElementById('address').value = order.address;
-            document.getElementById('message').value = order.message || '';
-            if(order.items && order.items.length) {
-                const item = order.items[0];
-                productSelect.value = item.product_id;
-                quantitySlider.value = item.quantity;
-                const opts = item.options;
-                cheeseChk.checked = !!opts.cheese;
-                sauceChk.checked = !!opts.sauce;
-                meatChk.checked = !!opts.meat;
-                setChk.checked = !!opts.set;
-                // установка доставки (нет в order.items, но есть в order.delivery_cost)
-                if(order.delivery_cost !== undefined) {
-                    const deliverySelect = document.getElementById('delivery');
-                    for(let i=0; i<deliverySelect.options.length; i++) {
-                        if(parseInt(deliverySelect.options[i].value) === order.delivery_cost) {
-                            deliverySelect.selectedIndex = i;
-                            break;
-                        }
-                    }
-                }
-                calculateTotal();
-            }
-            // Меняем поведение формы на обновление
-            const submitBtn = orderForm.querySelector('button');
-            submitBtn.innerText = 'Обновить заказ';
-            if(!document.getElementById('editOrderId')) {
-                const hidden = document.createElement('input');
-                hidden.type = 'hidden';
-                hidden.id = 'editOrderId';
-                hidden.value = orderId;
-                orderForm.appendChild(hidden);
-            } else {
-                document.getElementById('editOrderId').value = orderId;
-            }
-            orderForm.onsubmit = async (e) => {
-                e.preventDefault();
-                const editId = document.getElementById('editOrderId').value;
-                const full_name = document.getElementById('fullName').value.trim();
-                const phone = document.getElementById('phone').value.trim();
-                const email = document.getElementById('email').value.trim();
-                const address = document.getElementById('address').value.trim();
-                const message = document.getElementById('message').value.trim();
-                const product_id = parseInt(productSelect.value);
-                const quantity = parseInt(quantitySlider.value);
-                const delivery_cost = parseInt(deliverySelect.value);
-                const options = {};
-                if (cheeseChk.checked) options.cheese = true;
-                if (sauceChk.checked) options.sauce = true;
-                if (meatChk.checked) options.meat = true;
-                if (setChk.checked) options.set = true;
-                const updateData = {
-                    full_name, phone, email, address, message, delivery_cost,
-                    items: [{ product_id, quantity, options }],
-                    _method: 'PUT'
-                };
-                statusDiv.innerHTML = '⏳ Обновление...';
-                try {
-                    const resp = await fetch(`/index.php?route=order&id=${editId}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updateData)
-                    });
-                    const res = await resp.json();
-                    if(resp.ok && res.status === 'updated') {
-                        statusDiv.innerHTML = '✅ Заказ обновлён!';
-                        statusDiv.className = 'form-message success';
-                        orderForm.reset();
-                        document.getElementById('editOrderId').remove();
-                        orderForm.querySelector('button').innerText = 'Отправить заказ';
-                        orderForm.onsubmit = originalSubmit;
-                        loadOrders();
-                    } else {
-                        statusDiv.innerHTML = '❌ Ошибка обновления';
-                    }
-                } catch(err) { statusDiv.innerHTML = '❌ Ошибка сети'; }
-                finally { setTimeout(() => statusDiv.innerHTML = '', 3000); }
-            };
-            window.scrollTo({ top: document.getElementById('contact').offsetTop - 80, behavior: 'smooth' });
-        }
-    } catch(e) { console.error(e); }
-}
-const originalSubmit = orderForm.onsubmit;
+if (myOrdersBlock) myOrdersBlock.style.display = 'block';
 loadOrders();
+<?php else: ?>
+// Для гостей блок заказов изначально скрыт
+if (myOrdersBlock) myOrdersBlock.style.display = 'none';
 <?php endif; ?>
-
-
-
-
-
-
-
-
-
-    document.addEventListener('DOMContentLoaded', function() {
-   const contactBtn = document.querySelector('.contact-btn');
-const modalOverlay = document.getElementById('modalOverlay');
-const contactModal = document.getElementById('contact-modal');
-const closeModalBtn = document.getElementById('closeModal');
-
-if (contactBtn && modalOverlay && contactModal) {
-    contactBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        modalOverlay.classList.add('active');
-        contactModal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-    });
-
-    const closeModal = () => {
-        modalOverlay.classList.remove('active');
-        contactModal.classList.remove('active');
-        document.body.style.overflow = '';
-    };
-
-    if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
-    modalOverlay.addEventListener('click', closeModal);
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && contactModal.classList.contains('active')) closeModal();
-    });
-}
-    
-    // ========== ПЛАВНАЯ ПРОКРУТКА ==========
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function(e) {
-            const href = this.getAttribute('href');
-            
-            if (href === '#' || href.includes('javascript')) return;
-            
-            const targetElement = document.querySelector(href);
-            if (targetElement) {
-                e.preventDefault();
-                
-                window.scrollTo({
-                    top: targetElement.offsetTop - 80,
-                    behavior: 'smooth'
-                });
-            }
-        });
-    });
-    
-    // ========== ОБНОВЛЕНИЕ ГОДА ==========
-    const yearElements = document.querySelectorAll('.copyright');
-    yearElements.forEach(el => {
-        if (el.textContent.includes('2024')) {
-            const currentYear = new Date().getFullYear();
-            el.textContent = el.textContent.replace('2024', currentYear);
-        }
-    });
-    
-    // ========== АВТОСЛАЙДЕР ==========
-    let autoSlideInterval = setInterval(nextSlide, 5000);
-    
-    if (slider) {
-        slider.addEventListener('mouseenter', () => {
-            clearInterval(autoSlideInterval);
-        });
-        
-        slider.addEventListener('mouseleave', () => {
-            autoSlideInterval = setInterval(nextSlide, 5000);
-        });
-    }
-    
-    updateSlider();
-});
-
-
 </script>
+<script src="old.js.js"></script>
 <script src="gallery.js"></script>
 <script src="ingridient.js"></script>
 <script src="mobileMenu.js"></script>
