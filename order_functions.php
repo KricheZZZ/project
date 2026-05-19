@@ -1,8 +1,6 @@
 <?php
 require_once 'db.php';
 
-
-
 function validateOrderData($data, &$clean_data) {
     $errors = [];
 
@@ -20,8 +18,8 @@ function validateOrderData($data, &$clean_data) {
     $phone = trim($data['phone'] ?? '');
     if (empty($phone)) {
         $errors['phone'] = 'Введите номер телефона.';
-    } elseif (!preg_match('/^[\d\s\-\+\(\)]{6,12}$/', $phone)) {
-        $errors['phone'] = 'Телефон должен содержать от 6 до 12 символов (допустимы +, -, (, ), пробел).';
+    } elseif (!preg_match('/^[\d\s\-\+\(\)]{6,20}$/', $phone)) {
+        $errors['phone'] = 'Телефон должен содержать от 6 до 20 символов (допустимы +, -, (, ), пробел).';
     } else {
         $clean_data['phone'] = $phone;
     }
@@ -55,6 +53,7 @@ function validateOrderData($data, &$clean_data) {
         $errors['items'] = 'Заказ не может быть пустым.';
     } else {
         $clean_items = [];
+        $pdo = getDB();
         foreach ($data['items'] as $item) {
             $product_id = (int)($item['product_id'] ?? 0);
             $quantity = (int)($item['quantity'] ?? 0);
@@ -62,12 +61,11 @@ function validateOrderData($data, &$clean_data) {
 
             if ($product_id <= 0 || $quantity <= 0) continue;
 
-            $pdo = getDB();
             $stmt = $pdo->prepare("SELECT base_price FROM products WHERE id = ?");
             $stmt->execute([$product_id]);
             $product = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$product) {
-                $errors['items'] = 'Неверный идентификатор товара.';
+                $errors['items'] = 'Неверный товар.';
                 break;
             }
 
@@ -79,7 +77,6 @@ function validateOrderData($data, &$clean_data) {
             if (isset($options['set'])) $extra += 150;
 
             $price_per_unit = $base_price + $extra;
-
             $clean_items[] = [
                 'product_id' => $product_id,
                 'quantity' => $quantity,
@@ -88,19 +85,17 @@ function validateOrderData($data, &$clean_data) {
             ];
         }
         if (empty($clean_items)) {
-            $errors['items'] = 'Добавьте хотя бы одну позицию в заказ.';
+            $errors['items'] = 'Добавьте хотя бы одну позицию.';
         } else {
             $clean_data['items'] = $clean_items;
         }
     }
-
     return $errors;
 }
 
 function createOrder($data, $is_logged_in, $user_id = null) {
     $pdo = getDB();
     $pdo->beginTransaction();
-
     try {
         $errors = validateOrderData($data, $clean);
         if (!empty($errors)) {
@@ -118,8 +113,7 @@ function createOrder($data, $is_logged_in, $user_id = null) {
             $password_hash = password_hash($plain_password, PASSWORD_DEFAULT);
 
             $stmt = $pdo->prepare("
-                INSERT INTO application 
-                (full_name, phone, email, login, password_hash)
+                INSERT INTO application (full_name, phone, email, login, password_hash)
                 VALUES (?, ?, ?, ?, ?)
             ");
             $stmt->execute([
@@ -133,11 +127,7 @@ function createOrder($data, $is_logged_in, $user_id = null) {
             $_SESSION['application_id'] = $application_id;
         } else {
             $application_id = $user_id;
-            $stmt = $pdo->prepare("
-                UPDATE application 
-                SET full_name = ?, phone = ?, email = ?
-                WHERE id = ?
-            ");
+            $stmt = $pdo->prepare("UPDATE application SET full_name = ?, phone = ?, email = ? WHERE id = ?");
             $stmt->execute([$clean['full_name'], $clean['phone'], $clean['email'], $application_id]);
         }
 
@@ -169,16 +159,13 @@ function createOrder($data, $is_logged_in, $user_id = null) {
                 $options_json, $item['price_per_unit']
             ]);
         }
-
         $pdo->commit();
-
         return [
             'success' => true,
             'order_id' => $order_id,
             'total' => $total,
             'generated_login' => $generated_login,
-            'generated_password' => $generated_password,
-            'profile_url' => '/index.php'
+            'generated_password' => $generated_password
         ];
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -189,7 +176,6 @@ function createOrder($data, $is_logged_in, $user_id = null) {
 function updateOrder($order_id, $data, $user_id) {
     $pdo = getDB();
     $pdo->beginTransaction();
-
     try {
         $stmt = $pdo->prepare("SELECT application_id FROM orders WHERE id = ?");
         $stmt->execute([$order_id]);
@@ -197,17 +183,14 @@ function updateOrder($order_id, $data, $user_id) {
         if (!$order || $order['application_id'] != $user_id) {
             return ['success' => false, 'errors' => ['auth' => 'Доступ запрещён']];
         }
-
         $errors = validateOrderData($data, $clean);
         if (!empty($errors)) {
             return ['success' => false, 'errors' => $errors];
         }
-
         $total = 0;
         foreach ($clean['items'] as $item) {
             $total += $item['quantity'] * $item['price_per_unit'];
         }
-
         $stmt = $pdo->prepare("
             UPDATE orders 
             SET full_name = ?, phone = ?, email = ?, address = ?, message = ?, total_price = ?
@@ -217,20 +200,17 @@ function updateOrder($order_id, $data, $user_id) {
             $clean['full_name'], $clean['phone'], $clean['email'],
             $clean['address'], $clean['message'], $total, $order_id
         ]);
-
         $pdo->prepare("DELETE FROM order_items WHERE order_id = ?")->execute([$order_id]);
         $stmt_item = $pdo->prepare("
             INSERT INTO order_items (order_id, product_id, quantity, options_json, price_per_unit)
             VALUES (?, ?, ?, ?, ?)
         ");
         foreach ($clean['items'] as $item) {
-            $options_json = json_encode($item['options']);
             $stmt_item->execute([
                 $order_id, $item['product_id'], $item['quantity'],
-                $options_json, $item['price_per_unit']
+                json_encode($item['options']), $item['price_per_unit']
             ]);
         }
-
         $pdo->commit();
         return ['success' => true, 'order_id' => $order_id, 'total' => $total];
     } catch (Exception $e) {
@@ -239,7 +219,6 @@ function updateOrder($order_id, $data, $user_id) {
     }
 }
 
-// НОВАЯ ФУНКЦИЯ: получить все заказы пользователя
 function getUserOrders($user_id) {
     $pdo = getDB();
     $stmt = $pdo->prepare("
@@ -261,7 +240,6 @@ function getUserOrders($user_id) {
     return $orders;
 }
 
-// НОВАЯ ФУНКЦИЯ: получить один заказ с проверкой прав
 function getOrderById($order_id, $user_id) {
     $pdo = getDB();
     $stmt = $pdo->prepare("

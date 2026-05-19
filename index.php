@@ -3,16 +3,15 @@ session_start();
 $is_logged_in = isset($_SESSION['application_id']);
 $user_id = $is_logged_in ? $_SESSION['application_id'] : null;
 
-// Если это API-запрос (параметр route)
+// ========== ОБРАБОТКА API-ЗАПРОСОВ ==========
 if (isset($_GET['route'])) {
     header('Content-Type: application/json; charset=UTF-8');
     require_once 'db.php';
     require_once 'order_functions.php';
-    
+
     $method = $_SERVER['REQUEST_METHOD'];
     $route = $_GET['route'];
-    
-    // Эмуляция PUT через POST + _method
+
     if ($method === 'POST' && isset($_POST['_method'])) {
         $method = strtoupper($_POST['_method']);
     }
@@ -24,9 +23,8 @@ if (isset($_GET['route'])) {
             unset($input_json['_method']);
         }
     }
-    
+
     if ($route === 'order') {
-        // POST /?route=order - создание заказа
         if ($method === 'POST') {
             $data = $input_json ?? $_POST;
             if (!$data) {
@@ -49,7 +47,6 @@ if (isset($_GET['route'])) {
                 echo json_encode(['errors' => $result['errors']]);
             }
         }
-        // PUT /?route=order&id=123 - обновление
         elseif (($method === 'PUT' || ($method === 'POST' && isset($_GET['_method']))) && isset($_GET['id'])) {
             if (!$is_logged_in) {
                 http_response_code(401);
@@ -66,15 +63,13 @@ if (isset($_GET['route'])) {
                 echo json_encode(['errors' => $result['errors']]);
             }
         }
-        // GET /?route=order&id=123 - получение заказа
         elseif ($method === 'GET' && isset($_GET['id'])) {
             if (!$is_logged_in) {
                 http_response_code(401);
                 echo json_encode(['error' => 'Требуется авторизация']);
                 exit;
             }
-            $order_id = (int)$_GET['id'];
-            $order = getOrderById($order_id, $user_id);
+            $order = getOrderById((int)$_GET['id'], $user_id);
             if ($order) {
                 echo json_encode(['status' => 'ok', 'order' => $order]);
             } else {
@@ -93,15 +88,15 @@ if (isset($_GET['route'])) {
             echo json_encode(['error' => 'Требуется авторизация']);
             exit;
         }
-        $orders = getUserOrders($user_id);
-        echo json_encode(['status' => 'ok', 'orders' => $orders]);
+        echo json_encode(['status' => 'ok', 'orders' => getUserOrders($user_id)]);
     }
     else {
         http_response_code(404);
         echo json_encode(['error' => 'Endpoint не найден']);
     }
     exit;
-}?>
+}
+?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -305,108 +300,56 @@ if (isset($_GET['route'])) {
         <p>Рассчитайте стоимость вашего заказа с учётом всех дополнений</p>
     </div>
     
-    <div class="calculator">
-        <form class="calculator-form" id="price-calculator">
-            <div class="form-group">
-                <label for="product">Тип шаурмы</label>
-                <select id="product" name="product">
-                    <option value="250">Классическая (250 ₽)</option>
-                    <option value="280">Острая (280 ₽)</option>
-                    <option value="220">Вегетарианская (220 ₽)</option>
-                    <option value="350">Дёнер премиум (350 ₽)</option>
-                    <option value="300">Дёнер в лепёшке (300 ₽)</option>
-                </select>
+    <section id="calculator" class="section">
+    <div class="section-title"><h2>Калькулятор заказа</h2><p>Рассчитайте стоимость своей шаурмы</p></div>
+    <div class="calculator" style="max-width:800px; margin:0 auto;">
+        <div class="form-group">
+            <label>Тип шаурмы</label>
+            <select id="productSelect">
+                <option value="1" data-price="250">Классическая (250 ₽)</option>
+                <option value="2" data-price="280">Острая (280 ₽)</option>
+                <option value="3" data-price="220">Вегетарианская (220 ₽)</option>
+                <option value="4" data-price="350">Дёнер премиум (350 ₽)</option>
+                <option value="5" data-price="300">Дёнер в лепёшке (300 ₽)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Количество: <span id="quantityVal">1</span> шт.</label>
+            <input type="range" id="quantityRange" min="1" max="10" value="1">
+        </div>
+        <div class="form-group">
+            <label>Дополнительно</label>
+            <div style="display:flex; gap:15px; flex-wrap:wrap;">
+                <label><input type="checkbox" class="extra" data-price="50"> Доп. сыр (+50 ₽)</label>
+                <label><input type="checkbox" class="extra" data-price="30"> Доп. соус (+30 ₽)</label>
+                <label><input type="checkbox" class="extra" data-price="100"> Двойное мясо (+100 ₽)</label>
+                <label><input type="checkbox" class="extra" data-price="150"> Комбо (+150 ₽)</label>
             </div>
-            
-            <div class="form-group">
-                <label for="quantity">Количество: <span id="quantityValue">2</span> шт.</label>
-                <input type="range" id="quantity" name="quantity" min="1" max="10" value="2">
-            </div>
-            
-            <div class="form-group">
-                <label for="delivery">Доставка</label>
-                <select id="delivery" name="delivery">
-                    <option value="0">Самовывоз (бесплатно)</option>
-                    <option value="150">По району (150 ₽)</option>
-                    <option value="250">По городу (250 ₽)</option>
-                    <option value="400">Срочная доставка (400 ₽)</option>
-                </select>
-            </div>
-            
-            <div class="form-group full-width">
-                <label>Дополнительно</label>
-                <div class="options-group">
-                    <div class="option-checkbox">
-                        <input type="checkbox" id="cheese" name="cheese" value="50">
-                        <label for="cheese">Доп. сыр (+50 ₽)</label>
-                    </div>
-                    <div class="option-checkbox">
-                        <input type="checkbox" id="sauce" name="sauce" value="30">
-                        <label for="sauce">Доп. соус (+30 ₽)</label>
-                    </div>
-                    <div class="option-checkbox">
-                        <input type="checkbox" id="meat" name="meat" value="100">
-                        <label for="meat">Двойное мясо (+100 ₽)</label>
-                    </div>
-                    <div class="option-checkbox">
-                        <input type="checkbox" id="set" name="set" value="150">
-                        <label for="set">Комбо (напиток+картошка) (+150 ₽)</label>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="calculator-result">
-                <h3>Итоговая стоимость</h3>
-                <div class="total-price" id="total-price">500 ₽</div>
-                <p class="hint">(2 шт. классической × 250 ₽ + доставка 0 ₽)</p>
-            </div>
-        </form>
+        </div>
+        <div class="calculator-result">
+            <h3>Итоговая стоимость</h3>
+            <div class="total-price" id="dynamicTotal">250 ₽</div>
+        </div>
     </div>
 </section>
 
-<!-- ========== КОНТАКТНАЯ ФОРМА ========== -->
+<!-- ФОРМА ЗАКАЗА -->
 <section id="contact" class="section">
-    <div class="section-title">
-        <h2>Оформить заказ</h2>
-        <p>Заполните форму, и мы приготовим для вас самую вкусную шаурму</p>
-    </div>
-
-    <div id="credentials-block" class="credentials-block" style="display: none;"></div>
-
-    <form id="order-form" class="contact-form">
-        <div class="form-group">
-            <label for="full_name">Ваше имя *</label>
-            <input type="text" id="full_name" name="full_name" required minlength="2" placeholder="Иван Петров">
-        </div>
-        <div class="form-group">
-            <label for="phone">Телефон *</label>
-            <input type="tel" id="phone" name="phone" required placeholder="+7 (123) 456-78-90">
-        </div>
-        <div class="form-group">
-            <label for="email">Электронная почта *</label>
-            <input type="email" id="email" name="email" required placeholder="example@mail.ru">
-        </div>
-        <div class="form-group">
-            <label for="address">Адрес доставки *</label>
-            <input type="text" id="address" name="address" required placeholder="г. Москва, ул. Примерная, д.1">
-        </div>
-        <div class="form-group">
-            <label for="message">Пожелания к заказу</label>
-            <textarea id="message" name="message" rows="3" placeholder="Например: без лука, острый соус отдельно..."></textarea>
-        </div>
-
-        <input type="hidden" id="edit_order_id" value="">
-        <button type="submit" class="btn" id="submit-order">Отправить заказ</button>
-        <div id="form-status" class="form-message"></div>
+    <div class="section-title"><h2>Оформить заказ</h2><p>Заполните форму, и мы приготовим для вас самую вкусную шаурму</p></div>
+    <div id="credentialsBlock" class="credentials-block" style="display:none;"></div>
+    <form id="orderForm" class="contact-form">
+        <div class="form-group"><label>Ваше имя *</label><input type="text" id="fullName" required></div>
+        <div class="form-group"><label>Телефон *</label><input type="tel" id="phone" required></div>
+        <div class="form-group"><label>Email *</label><input type="email" id="email" required></div>
+        <div class="form-group"><label>Адрес доставки *</label><input type="text" id="address" required></div>
+        <div class="form-group"><label>Пожелания</label><textarea id="message" rows="3"></textarea></div>
+        <button type="submit" class="btn">Отправить заказ</button>
+        <div id="formStatus" class="form-message"></div>
     </form>
-
     <?php if ($is_logged_in): ?>
     <div class="my-orders">
         <h3>Мои заказы</h3>
-        <div id="orders-list" class="orders-list">
-            <!-- Список заказов загружается через JS -->
-            <p>Загрузка...</p>
-        </div>
+        <div id="ordersList">Загрузка...</div>
     </div>
     <?php endif; ?>
 </section>
@@ -467,200 +410,232 @@ if (isset($_GET['route'])) {
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Шаурмечная "Дёнер Королевский" загружена!');
+
+
+const productSelect = document.getElementById('productSelect');
+const quantityRange = document.getElementById('quantityRange');
+const quantityVal = document.getElementById('quantityVal');
+const extraChecks = document.querySelectorAll('.extra');
+const dynamicTotalSpan = document.getElementById('dynamicTotal');
+
+function updateTotal() {
+    const selectedOption = productSelect.options[productSelect.selectedIndex];
+    let basePrice = parseInt(selectedOption.dataset.price);
+    const qty = parseInt(quantityRange.value);
+    let extras = 0;
+    extraChecks.forEach(cb => { if(cb.checked) extras += parseInt(cb.dataset.price); });
+    const total = (basePrice + extras) * qty;
+    dynamicTotalSpan.innerText = total + ' ₽';
+    quantityVal.innerText = qty;
+}
+productSelect.addEventListener('change', updateTotal);
+quantityRange.addEventListener('input', updateTotal);
+extraChecks.forEach(cb => cb.addEventListener('change', updateTotal));
+updateTotal();
+
+
+
+
+
+
+
+
+const orderForm = document.getElementById('orderForm');
+const statusDiv = document.getElementById('formStatus');
+const credBlock = document.getElementById('credentialsBlock');
+
+orderForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const full_name = document.getElementById('fullName').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const address = document.getElementById('address').value.trim();
+    const message = document.getElementById('message').value.trim();
     
-  
-    
-   
-    
-  
-    
-const orderForm = document.getElementById('order-form');
-    const statusDiv = document.getElementById('form-status');
-    const credBlock = document.getElementById('credentials-block');
-    const editOrderIdField = document.getElementById('edit_order_id');
-    
-    function buildOrderItems() {
-        const productSelect = document.getElementById('product');
-        const quantity = parseInt(document.getElementById('quantity').value);
-        const cheese = document.getElementById('cheese').checked;
-        const sauce = document.getElementById('sauce').checked;
-        const meat = document.getElementById('meat').checked;
-        const setOpt = document.getElementById('set').checked;
-
-        const productMap = {
-            'Классическая': 1, 'Острая': 2, 'Вегетарианская': 3,
-            'Дёнер премиум': 4, 'Дёнер в лепёшке': 5
-        };
-        const productText = productSelect.options[productSelect.selectedIndex].text.split(' (')[0];
-        const productId = productMap[productText];
-
-        const options = {};
-        if (cheese) options.cheese = true;
-        if (sauce) options.sauce = true;
-        if (meat) options.meat = true;
-        if (setOpt) options.set = true;
-
-        return [{ product_id: productId, quantity: quantity, options: options }];
-    }
-    
-    async function submitOrder(isEdit, orderId) {
-        const full_name = document.getElementById('full_name').value.trim();
-        const phone = document.getElementById('phone').value.trim();
-        const email = document.getElementById('email').value.trim();
-        const address = document.getElementById('address').value.trim();
-        const message = document.getElementById('message').value.trim();
-        const items = buildOrderItems();
-
-        const body = { full_name, phone, email, address, message, items };
-
-
-        const url = isEdit ? `/index.php?route=order&id=${orderId}` : '/index.php?route=order';
-        if (isEdit) body._method = 'PUT';
-
-       
-        const method = 'POST'; // всегда POST, PUT эмулируется через _method
-
-        statusDiv.innerHTML = '⏳ Отправка...';
-        statusDiv.className = 'form-message sending';
-        document.getElementById('submit-order').disabled = true;
-
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const result = await response.json();
-            if (response.ok && (result.status === 'ok' || result.status === 'updated')) {
-                statusDiv.innerHTML = isEdit ? '✅ Заказ обновлён!' : '✅ Заказ принят!';
-                statusDiv.className = 'form-message success';
-                if (!isEdit && result.login && result.password) {
-                    credBlock.innerHTML = `
-                        <h3>Ваши данные для входа</h3>
-                        <p><strong>Логин:</strong> ${escapeHtml(result.login)}</p>
-                        <p><strong>Пароль:</strong> ${escapeHtml(result.password)}</p>
-                        <p><a href="/login.php">Войти</a> для редактирования заказа.</p>
-                    `;
-                    credBlock.style.display = 'block';
-                } else {
-                    credBlock.style.display = 'none';
-                }
-                orderForm.reset();
-                document.getElementById('quantity').value = 2;
-                document.getElementById('quantityValue').innerText = '2';
-                document.getElementById('total-price').innerText = '500 ₽';
-                editOrderIdField.value = '';
-                if (<?= json_encode($is_logged_in) ?>) loadUserOrders();
-            } else {
-                let errorMsg = 'Ошибка: ';
-                if (result.errors) errorMsg += Object.values(result.errors).join(' ');
-                else if (result.error) errorMsg += result.error;
-                else errorMsg += 'Неизвестная ошибка';
-                statusDiv.innerHTML = '❌ ' + errorMsg;
-                statusDiv.className = 'form-message error';
-            }
-        } catch (err) {
-            statusDiv.innerHTML = '❌ Ошибка сети. Попробуйте позже.';
-            statusDiv.className = 'form-message error';
-        } finally {
-            document.getElementById('submit-order').disabled = false;
-            setTimeout(() => {
-                if (statusDiv.className !== 'form-message error')
-                    statusDiv.innerHTML = '';
-            }, 5000);
+    // Собираем данные заказа из калькулятора
+    const product_id = parseInt(productSelect.value);
+    const quantity = parseInt(quantityRange.value);
+    const options = {};
+    extraChecks.forEach(cb => {
+        if(cb.checked) {
+            const name = cb.parentElement.innerText.includes('сыр') ? 'cheese' :
+                        cb.parentElement.innerText.includes('соус') ? 'sauce' :
+                        cb.parentElement.innerText.includes('мясо') ? 'meat' : 'set';
+            options[name] = true;
         }
-    }
-    
-    orderForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const editId = editOrderIdField.value;
-        if (editId) submitOrder(true, editId);
-        else submitOrder(false, null);
     });
     
-    function escapeHtml(str) { 
-         if (!str) return '';
-        return str.replace(/[&<>]/g, function(m) {
-            if (m === '&') return '&amp;';
-            if (m === '<') return '&lt;';
-            if (m === '>') return '&gt;';
-            return m;
+    const orderData = {
+        full_name, phone, email, address, message,
+        items: [{ product_id, quantity, options }]
+    };
+    
+    statusDiv.innerHTML = '⏳ Отправка...';
+    statusDiv.className = 'form-message sending';
+    const submitBtn = orderForm.querySelector('button');
+    submitBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/index.php?route=order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderData)
         });
-    }
-    
-    <?php if ($is_logged_in): ?>
-    async function loadUserOrders() {
-        const container = document.getElementById('orders-list');
-        try {
-            const response = await fetch('/index.php?route=orders');
-            const data = await response.json();
-            if (data.status === 'ok' && data.orders.length) {
-                let html = '<ul>';
-                data.orders.forEach(order => {
-                    html += `<li>
-                        Заказ №${order.id} от ${new Date(order.created_at).toLocaleString()}, сумма: ${order.total_price} ₽
-                        <button class="edit-order-btn" data-id="${order.id}">Редактировать</button>
-                    </li>`;
-                });
-                html += '</ul>';
-                container.innerHTML = html;
-                document.querySelectorAll('.edit-order-btn').forEach(btn => {
-                    btn.addEventListener('click', () => loadOrderForEdit(btn.dataset.id));
-                });
+        const result = await response.json();
+        if (response.ok && result.status === 'ok') {
+            statusDiv.innerHTML = '✅ Заказ принят! С вами свяжутся.';
+            statusDiv.className = 'form-message success';
+            orderForm.reset();
+            quantityRange.value = 1;
+            extraChecks.forEach(cb => cb.checked = false);
+            updateTotal();
+            if (result.login && result.password) {
+                credBlock.innerHTML = `<h3>Ваши данные для входа</h3>
+                    <p><strong>Логин:</strong> ${escapeHtml(result.login)}</p>
+                    <p><strong>Пароль:</strong> ${escapeHtml(result.password)}</p>
+                    <p><a href="/login.php">Войти</a> для редактирования заказа.</p>`;
+                credBlock.style.display = 'block';
             } else {
-                container.innerHTML = '<p>У вас пока нет заказов.</p>';
+                credBlock.style.display = 'none';
             }
-        } catch(e) {
-            container.innerHTML = '<p>Ошибка загрузки заказов.</p>';
+            <?php if ($is_logged_in) echo 'loadOrders();'; ?>
+        } else {
+            let errMsg = 'Ошибка: ';
+            if (result.errors) errMsg += Object.values(result.errors).join(' ');
+            else errMsg += result.error || 'Неизвестная ошибка';
+            statusDiv.innerHTML = '❌ ' + errMsg;
+            statusDiv.className = 'form-message error';
         }
+    } catch(err) {
+        statusDiv.innerHTML = '❌ Ошибка сети. Проверьте соединение.';
+        statusDiv.className = 'form-message error';
+        console.error(err);
+    } finally {
+        submitBtn.disabled = false;
+        setTimeout(() => { if(statusDiv.className !== 'form-message error') statusDiv.innerHTML = ''; }, 5000);
     }
-    
-    async function loadOrderForEdit(orderId) {
-        try {
-            const response = await fetch('/api.php?route=orders');
-            const data = await response.json();
-            if (data.status === 'ok') {
-                const order = data.order;
-                document.getElementById('full_name').value = order.full_name;
-                document.getElementById('phone').value = order.phone;
-                document.getElementById('email').value = order.email;
-                document.getElementById('address').value = order.address;
-                document.getElementById('message').value = order.message || '';
-                if (order.items && order.items.length) {
-                    const item = order.items[0];
-                    // Установить select продукта по product_id
-                    const productMapInv = {1:'Классическая',2:'Острая',3:'Вегетарианская',4:'Дёнер премиум',5:'Дёнер в лепёшке'};
-                    const productName = productMapInv[item.product_id];
-                    const select = document.getElementById('product');
-                    for (let i=0; i<select.options.length; i++) {
-                        if (select.options[i].text.startsWith(productName)) {
-                            select.selectedIndex = i;
-                            break;
-                        }
-                    }
-                    document.getElementById('quantity').value = item.quantity;
-                    document.getElementById('quantityValue').innerText = item.quantity;
-                    const opts = item.options;
-                    document.getElementById('cheese').checked = !!opts.cheese;
-                    document.getElementById('sauce').checked = !!opts.sauce;
-                    document.getElementById('meat').checked = !!opts.meat;
-                    document.getElementById('set').checked = !!opts.set;
-                    // пересчитать стоимость
-                    const event = new Event('change');
-                    document.getElementById('product').dispatchEvent(event);
-                    document.getElementById('quantity').dispatchEvent(event);
-                }
-                editOrderIdField.value = orderId;
-                document.getElementById('submit-order').innerText = 'Обновить заказ';
-                window.scrollTo({ top: document.getElementById('contact').offsetTop - 80, behavior: 'smooth' });
+});
+
+function escapeHtml(str) {
+    if(!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if(m === '&') return '&amp;';
+        if(m === '<') return '&lt;';
+        if(m === '>') return '&gt;';
+        return m;
+    });
+}
+
+<?php if ($is_logged_in): ?>
+async function loadOrders() {
+    const container = document.getElementById('ordersList');
+    try {
+        const resp = await fetch('/index.php?route=orders');
+        const data = await resp.json();
+        if(data.status === 'ok' && data.orders.length) {
+            let html = '<ul style="list-style:none; padding:0;">';
+            data.orders.forEach(order => {
+                html += `<li class="order-item" data-id="${order.id}">
+                    Заказ №${order.id} от ${new Date(order.created_at).toLocaleString()} — ${order.total_price} ₽
+                </li>`;
+            });
+            html += '</ul>';
+            container.innerHTML = html;
+            document.querySelectorAll('.order-item').forEach(el => {
+                el.addEventListener('click', () => loadOrderForEdit(el.dataset.id));
+            });
+        } else {
+            container.innerHTML = '<p>У вас пока нет заказов.</p>';
+        }
+    } catch(e) { container.innerHTML = '<p>Ошибка загрузки заказов.</p>'; }
+}
+
+async function loadOrderForEdit(orderId) {
+    try {
+        const resp = await fetch(`/index.php?route=order&id=${orderId}`);
+        const data = await resp.json();
+        if(data.status === 'ok') {
+            const order = data.order;
+            document.getElementById('fullName').value = order.full_name;
+            document.getElementById('phone').value = order.phone;
+            document.getElementById('email').value = order.email;
+            document.getElementById('address').value = order.address;
+            document.getElementById('message').value = order.message || '';
+            if(order.items && order.items.length) {
+                const item = order.items[0];
+                productSelect.value = item.product_id;
+                quantityRange.value = item.quantity;
+                const opts = item.options;
+                extraChecks.forEach(cb => {
+                    const label = cb.parentElement.innerText;
+                    if(label.includes('сыр')) cb.checked = !!opts.cheese;
+                    else if(label.includes('соус')) cb.checked = !!opts.sauce;
+                    else if(label.includes('мясо')) cb.checked = !!opts.meat;
+                    else if(label.includes('Комбо')) cb.checked = !!opts.set;
+                });
+                updateTotal();
             }
-        } catch(e) {}
-    }
-    
-    loadUserOrders();
-    <?php endif; ?>
+            // Меняем текст кнопки на "Обновить заказ" и добавляем скрытое поле
+            const submitBtn = orderForm.querySelector('button');
+            submitBtn.innerText = 'Обновить заказ';
+            if(!document.getElementById('editOrderId')) {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.id = 'editOrderId';
+                hidden.value = orderId;
+                orderForm.appendChild(hidden);
+            } else {
+                document.getElementById('editOrderId').value = orderId;
+            }
+            // Переопределяем отправку для обновления
+            orderForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const editId = document.getElementById('editOrderId').value;
+                const full_name = document.getElementById('fullName').value.trim();
+                const phone = document.getElementById('phone').value.trim();
+                const email = document.getElementById('email').value.trim();
+                const address = document.getElementById('address').value.trim();
+                const message = document.getElementById('message').value.trim();
+                const product_id = parseInt(productSelect.value);
+                const quantity = parseInt(quantityRange.value);
+                const options = {};
+                extraChecks.forEach(cb => {
+                    const label = cb.parentElement.innerText;
+                    if(label.includes('сыр')) options.cheese = cb.checked;
+                    else if(label.includes('соус')) options.sauce = cb.checked;
+                    else if(label.includes('мясо')) options.meat = cb.checked;
+                    else if(label.includes('Комбо')) options.set = cb.checked;
+                });
+                const updateData = { full_name, phone, email, address, message, items: [{ product_id, quantity, options }], _method: 'PUT' };
+                statusDiv.innerHTML = '⏳ Обновление...';
+                try {
+                    const resp = await fetch(`/index.php?route=order&id=${editId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updateData)
+                    });
+                    const res = await resp.json();
+                    if(resp.ok && res.status === 'updated') {
+                        statusDiv.innerHTML = '✅ Заказ обновлён!';
+                        statusDiv.className = 'form-message success';
+                        orderForm.reset();
+                        document.getElementById('editOrderId').remove();
+                        orderForm.querySelector('button').innerText = 'Отправить заказ';
+                        orderForm.onsubmit = originalSubmit;
+                        loadOrders();
+                    } else {
+                        statusDiv.innerHTML = '❌ Ошибка обновления';
+                    }
+                } catch(err) { statusDiv.innerHTML = '❌ Ошибка сети'; }
+                finally { setTimeout(() => statusDiv.innerHTML = '', 3000); }
+            };
+            window.scrollTo({ top: document.getElementById('contact').offsetTop - 80, behavior: 'smooth' });
+        }
+    } catch(e) { console.error(e); }
+}
+const originalSubmit = orderForm.onsubmit;
+loadOrders();
+<?php endif; ?>
 
 
 

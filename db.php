@@ -1,5 +1,4 @@
 <?php
-// db.php
 function getDB() {
     static $pdo = null;
     if ($pdo === null) {
