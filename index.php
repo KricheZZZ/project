@@ -504,8 +504,6 @@ orderForm.addEventListener('submit', async (e) => {
     const email = document.getElementById('email').value.trim();
     const address = document.getElementById('address').value.trim();
     const message = document.getElementById('message').value.trim();
-    
-    // Собираем данные из калькулятора
     const product_id = parseInt(productSelect.value);
     const quantity = parseInt(quantitySlider.value);
     const delivery_cost = parseInt(deliverySelect.value);
@@ -514,48 +512,48 @@ orderForm.addEventListener('submit', async (e) => {
     if (sauceChk.checked) options.sauce = true;
     if (meatChk.checked) options.meat = true;
     if (setChk.checked) options.set = true;
-    
+
     const orderData = {
         full_name, phone, email, address, message, delivery_cost,
         items: [{ product_id, quantity, options }]
     };
-    
+
     statusDiv.innerHTML = '⏳ Отправка...';
-    statusDiv.className = 'form-message sending';
     const submitBtn = orderForm.querySelector('button');
     submitBtn.disabled = true;
-    
+
     try {
-        const response = await fetch('/index.php?route=order', {
+        // ОТНОСИТЕЛЬНЫЙ ПУТЬ (работает в любой подпапке)
+        const response = await fetch('index.php?route=order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(orderData)
         });
-      const text = await response.text();
-        console.log('Ответ сервера (текст):', text);
-        
+
+        const text = await response.text();
+        console.log('Ответ сервера:', text);
+
         let result;
         try {
             result = JSON.parse(text);
         } catch (jsonError) {
-            statusDiv.innerHTML = '❌ Ошибка сервера: ' + text.substring(0, 100);
+            statusDiv.innerHTML = '❌ Сервер вернул не JSON: ' + text.substring(0, 100);
             statusDiv.className = 'form-message error';
             submitBtn.disabled = false;
             return;
         }
-        
+
         if (response.ok && result.status === 'ok') {
             statusDiv.innerHTML = '✅ Заказ принят!';
             statusDiv.className = 'form-message success';
             orderForm.reset();
-            // сброс калькулятора
             quantitySlider.value = 1;
             calculateTotal();
             if (result.login && result.password) {
                 credBlock.innerHTML = `<h3>Ваши данные для входа</h3>
                     <p><strong>Логин:</strong> ${escapeHtml(result.login)}</p>
                     <p><strong>Пароль:</strong> ${escapeHtml(result.password)}</p>
-                    <p><a href="/login.php">Войти</a> для редактирования.</p>`;
+                    <p><a href="login.php">Войти</a> для редактирования.</p>`;
                 credBlock.style.display = 'block';
             } else {
                 credBlock.style.display = 'none';
