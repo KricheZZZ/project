@@ -434,7 +434,50 @@ if (isset($_GET['route'])) {
 <script>
 
 
+const productSelect = document.getElementById('product');
+const quantitySlider = document.getElementById('quantity');
+const quantityValue = document.getElementById('quantityValue');
+const deliverySelect = document.getElementById('delivery');
+const totalPriceSpan = document.getElementById('total-price');
+const hintSpan = document.getElementById('total-hint');
+const cheeseChk = document.getElementById('cheese');
+const sauceChk = document.getElementById('sauce');
+const meatChk = document.getElementById('meat');
+const setChk = document.getElementById('set');
 
+function formatNumber(num) {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
+function calculateTotal() {
+    const selectedOption = productSelect.options[productSelect.selectedIndex];
+    const productPrice = parseInt(selectedOption.dataset.price);
+    const quantity = parseInt(quantitySlider.value);
+    const deliveryCost = parseInt(deliverySelect.value);
+    let extraCost = 0;
+    if (cheeseChk.checked) extraCost += 50;
+    if (sauceChk.checked) extraCost += 30;
+    if (meatChk.checked) extraCost += 100;
+    if (setChk.checked) extraCost += 150;
+    const total = (productPrice + extraCost) * quantity + deliveryCost;
+    totalPriceSpan.innerText = formatNumber(total) + ' ₽';
+    quantityValue.innerText = quantity;
+    const productName = selectedOption.text.split(' (')[0];
+    let hintText = `(${quantity} шт. ${productName.toLowerCase()} × ${formatNumber(productPrice)} ₽`;
+    if (extraCost > 0) hintText += ` + дополнения ${formatNumber(extraCost)} ₽`;
+    if (deliveryCost > 0) hintText += ` + доставка ${formatNumber(deliveryCost)} ₽`;
+    hintText += `)`;
+    hintSpan.innerText = hintText;
+}
+
+productSelect.addEventListener('change', calculateTotal);
+quantitySlider.addEventListener('input', calculateTotal);
+deliverySelect.addEventListener('change', calculateTotal);
+cheeseChk.addEventListener('change', calculateTotal);
+sauceChk.addEventListener('change', calculateTotal);
+meatChk.addEventListener('change', calculateTotal);
+setChk.addEventListener('change', calculateTotal);
+calculateTotal();
 
 
 
@@ -737,7 +780,6 @@ if (contactBtn && modalOverlay && contactModal) {
 
 
 </script>
-<script src="calculator.js"></script>
 <script src="gallery.js"></script>
 <script src="ingridient.js"></script>
 <script src="mobileMenu.js"></script>
