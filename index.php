@@ -531,23 +531,31 @@ orderForm.addEventListener('submit', async (e) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(orderData)
         });
-        const result = await response.json();
+      const text = await response.text();
+        console.log('Ответ сервера (текст):', text);
+        
+        let result;
+        try {
+            result = JSON.parse(text);
+        } catch (jsonError) {
+            statusDiv.innerHTML = '❌ Ошибка сервера: ' + text.substring(0, 100);
+            statusDiv.className = 'form-message error';
+            submitBtn.disabled = false;
+            return;
+        }
+        
         if (response.ok && result.status === 'ok') {
-            statusDiv.innerHTML = '✅ Заказ принят! С вами свяжутся.';
+            statusDiv.innerHTML = '✅ Заказ принят!';
             statusDiv.className = 'form-message success';
             orderForm.reset();
+            // сброс калькулятора
             quantitySlider.value = 1;
-            cheeseChk.checked = false;
-            sauceChk.checked = false;
-            meatChk.checked = false;
-            setChk.checked = false;
-            deliverySelect.value = '0';
             calculateTotal();
             if (result.login && result.password) {
                 credBlock.innerHTML = `<h3>Ваши данные для входа</h3>
                     <p><strong>Логин:</strong> ${escapeHtml(result.login)}</p>
                     <p><strong>Пароль:</strong> ${escapeHtml(result.password)}</p>
-                    <p><a href="/login.php">Войти</a> для редактирования заказа.</p>`;
+                    <p><a href="/login.php">Войти</a> для редактирования.</p>`;
                 credBlock.style.display = 'block';
             } else {
                 credBlock.style.display = 'none';
@@ -560,13 +568,15 @@ orderForm.addEventListener('submit', async (e) => {
             statusDiv.innerHTML = '❌ ' + errMsg;
             statusDiv.className = 'form-message error';
         }
-    } catch(err) {
+    } catch (err) {
+        console.error('Fetch error:', err);
         statusDiv.innerHTML = '❌ Ошибка сети. Проверьте соединение.';
         statusDiv.className = 'form-message error';
-        console.error(err);
     } finally {
         submitBtn.disabled = false;
-        setTimeout(() => { if(statusDiv.className !== 'form-message error') statusDiv.innerHTML = ''; }, 5000);
+        setTimeout(() => {
+            if (statusDiv.className !== 'form-message error') statusDiv.innerHTML = '';
+        }, 5000);
     }
 });
 
