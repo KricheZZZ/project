@@ -467,6 +467,10 @@ if (isset($_GET['route'])) {
 </div>
 
 <script>
+document.querySelector('video').addEventListener('ended', function() {
+    this.play();
+});
+
 // КАЛЬКУЛЯТОР 
     const productSelect = document.getElementById('product');
     const quantitySlider = document.getElementById('quantity');
