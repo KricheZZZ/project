@@ -20,7 +20,7 @@ function getDB() {
 
 $pdo = getDB();
 
-// === HTTP-АВТОРИЗАЦИЯ ===
+//HTTP-АВТОРИЗАЦИЯ 
 if (!isset($_SERVER['PHP_AUTH_USER']) || !isset($_SERVER['PHP_AUTH_PW'])) {
     header('WWW-Authenticate: Basic realm="Админ-панель заказов"');
     header('HTTP/1.0 401 Unauthorized');
@@ -42,19 +42,19 @@ if (!$admin_row || !password_verify($auth_pass, $admin_row['password_hash'])) {
     exit;
 }
 
-// === ФИЛЬТРАЦИЯ ===
-$filter = $_GET['filter'] ?? 'all'; // all или today
+//ФИЛЬТРАЦИЯ
+$filter = $_GET['filter'] ?? 'all'; //all или today
 $today = date('Y-m-d');
 $where = '';
 if ($filter === 'today') {
     $where = "WHERE DATE(o.created_at) = '$today'";
 }
 
-// === ОБРАБОТКА ДЕЙСТВИЙ ===
+//ОБРАБОТКА ДЕЙСТВИЙ
 $messages = [];
 $edit_errors = [];
 
-// Удаление заказа
+//Удаление заказа
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     try {
@@ -69,7 +69,7 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Редактирование заказа
+//Редактирование заказа
 $edit_id = 0;
 $edit_order = null;
 if (isset($_GET['edit'])) {
@@ -78,14 +78,14 @@ if (isset($_GET['edit'])) {
     $stmt->execute([$edit_id]);
     $edit_order = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($edit_order) {
-        // Загружаем позиции заказа
+        //Загружаем позиции заказа
         $stmt_items = $pdo->prepare("SELECT * FROM order_items WHERE order_id = ?");
         $stmt_items->execute([$edit_id]);
         $edit_order['items'] = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
     }
 }
 
-// Обработка сохранения редактирования (POST)
+//Обработка сохранения редактирования
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_id'])) {
     $id = (int)$_POST['edit_id'];
     $full_name = trim($_POST['full_name'] ?? '');
@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_id'])) {
     $status = $_POST['status'] ?? 'new';
     $delivery_cost = (int)($_POST['delivery_cost'] ?? 0);
     
-    // Простая валидация
+    //Простая валидация
     $has_error = false;
     $edit_errors = [];
     
@@ -123,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_id'])) {
     }
     
     if ($has_error) {
-        // Сохраняем значения для повторного отображения
+        //Сохраняем значения для повторного отображения
         $edit_order = [
             'id' => $id,
             'full_name' => $full_name,
@@ -133,24 +133,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_id'])) {
             'message' => $message,
             'status' => $status,
             'delivery_cost' => $delivery_cost,
-            'total_price' => 0 // будет пересчитан, но для формы не критично
+            'total_price' => 0 //будет пересчитан
         ];
         $edit_id = $id;
         $messages[] = '<div class="error-message">Исправьте ошибки в форме.</div>';
     } else {
-        // Пересчитываем total_price (нужно получить позиции заказа или оставить как есть)
-        // Для простоты оставляем существующую total_price, но можно пересчитать
+        //Пересчитываем total_price 
+        
         $stmt = $pdo->prepare("UPDATE orders SET full_name = ?, phone = ?, email = ?, address = ?, message = ?, status = ?, delivery_cost = ? WHERE id = ?");
         if ($stmt->execute([$full_name, $phone, $email, $address, $message, $status, $delivery_cost, $id])) {
             $messages[] = '<div class="success-message">Заказ №' . $id . ' успешно обновлён</div>';
-            $edit_id = 0; // выходим из режима редактирования
+            $edit_id = 0; //выходим из режима редактирования
         } else {
             $messages[] = '<div class="error-message">Ошибка при обновлении</div>';
         }
     }
 }
 
-// === ЗАГРУЗКА СПИСКА ЗАКАЗОВ ===
+//ЗАГРУЗКА СПИСКА ЗАКАЗОВ
 $orders = [];
 $sql = "
     SELECT o.*, 
@@ -169,7 +169,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $orders[] = $row;
 }
 
-// Статистика
+//Статистика
 $total_orders = count($orders);
 $today_orders = 0;
 if ($filter === 'all') {
@@ -206,7 +206,7 @@ if ($filter === 'all') {
 </head>
 <body>
 <div class="admin-container">
-    <h1>🔧 Админ-панель заказов</h1>
+    <h1> Админ-панель заказов</h1>
     <p>Авторизован как <strong><?= htmlspecialchars($auth_login) ?></strong></p>
 
     <?php if (!empty($messages)): ?>
@@ -346,9 +346,9 @@ if ($filter === 'all') {
         </table>
     </div>
 
-    <div class="back-link" style="margin-top: 30px;">
-        <a href="index.php">← Вернуться на главную</a>
-    </div>
+    <div class="filter-bar" style="margin-top: 30px; text-align: center;">
+    <a href="index.php">← Вернуться на главную</a>
+</div>
 </div>
 </body>
 </html>

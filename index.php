@@ -148,7 +148,7 @@ if (isset($_GET['route'])) {
 <header>
     <div class="video-background">
         <video autoplay muted loop playsinline>
-            <source src="https://assets.mixkit.co/videos/preview/mixkit-fire-in-a-barbecue-4888-large.mp4" type="video/mp4">
+            <source src="video.mp4" type="video/mp4">
             Ваш браузер не поддерживает видео.
         </video>
         <div class="overlay"></div>
@@ -420,7 +420,7 @@ if (isset($_GET['route'])) {
             <li><a href="#calculator">Калькулятор</a></li>
             <li><a href="#gallery">Галерея</a></li>
             <li><a href="#contact">Заказ</a></li>
-            <p><a href="admin_orders.php">📋 Управление заказами (админ)</a></p>
+            <p><a href="admin_orders.php">Управление заказами (АДМИН)</a></p>
         </ul>
         <div class="quote-section">
             <p class="inspiration-quote">
@@ -467,8 +467,7 @@ if (isset($_GET['route'])) {
 </div>
 
 <script>
-// ==================== КАЛЬКУЛЯТОР (старая логика) ====================
-// ==================== КАЛЬКУЛЯТОР ====================
+// КАЛЬКУЛЯТОР 
     const productSelect = document.getElementById('product');
     const quantitySlider = document.getElementById('quantity');
     const quantityValue = document.getElementById('quantityValue');
@@ -514,7 +513,7 @@ if (isset($_GET['route'])) {
     setChk.addEventListener('change', calculateTotal);
     calculateTotal();
 
-    // ==================== ОБЩИЕ ФУНКЦИИ ====================
+    //  ОБЩИЕ ФУНКЦИИ 
     function escapeHtml(str) {
         if (!str) return '';
         return str.replace(/[&<>]/g, function(m) {
@@ -527,7 +526,7 @@ if (isset($_GET['route'])) {
 
     let originalSubmitHandler = null; // для восстановления после редактирования
 
-    // ==================== ЗАГРУЗКА СПИСКА ЗАКАЗОВ ====================
+    //  ЗАГРУЗКА СПИСКА ЗАКАЗОВ 
     async function loadOrders() {
         const container = document.getElementById('ordersList');
         if (!container) return;
@@ -589,7 +588,7 @@ if (isset($_GET['route'])) {
         }
     }
 
-    // ==================== РЕДАКТИРОВАНИЕ ЗАКАЗА ====================
+    //  РЕДАКТИРОВАНИЕ ЗАКАЗА 
     async function loadOrderForEdit(orderId) {
         try {
             const resp = await fetch(`./index.php?route=order&id=${orderId}`);
@@ -695,7 +694,7 @@ if (isset($_GET['route'])) {
         } catch (e) { console.error(e); }
     }
 
-    // ==================== ОТПРАВКА НОВОГО ЗАКАЗА ====================
+    //ОТПРАВКА НОВОГО ЗАКАЗА 
     const orderForm = document.getElementById('orderForm');
     const statusDiv = document.getElementById('formStatus');
     const credBlock = document.getElementById('credentialsBlock');
