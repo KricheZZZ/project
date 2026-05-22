@@ -142,6 +142,16 @@ if (isset($_GET['route'])) {
     <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="style.css">
+<style>
+    /* Кнопка входа/выхода */
+.login-btn, .logout-btn {
+    background: linear-gradient(135deg, #2c2c2c, #1a1a1a);
+    box-shadow: none;
+}
+.login-btn:hover, .logout-btn:hover {
+    background: linear-gradient(135deg, #3e3e3e, #2a2a2a);
+}
+</style>
 </head>
 <body>
 <!-- ========== HEADER ========== -->
@@ -162,7 +172,11 @@ if (isset($_GET['route'])) {
             <li><a href="#calculator"><i class="fas fa-calculator"></i> Калькулятор</a></li>
             <li><a href="#gallery"><i class="fas fa-images"></i> Галерея</a></li>
             <li><a href="#contact"><i class="fas fa-address-book"></i> Заказ</a></li>
-           <li><a href="login.php"><i class="fas fa-address-book"></i> ВОЙТИ</a></li>
+          <?php if ($is_logged_in): ?>
+        <li><a href="logout.php" class="btn logout-btn"><i class="fas fa-sign-out-alt"></i> Выйти</a></li>
+    <?php else: ?>
+        <li><a href="login.php" class="btn login-btn"><i class="fas fa-sign-in-alt"></i> Войти</a></li>
+    <?php endif; ?>
             <!--<li><a href="#" class="btn contact-btn"><i class="fas fa-phone-alt"></i> Заказать</a></li> -->
         </ul>
         <div class="burger" id="burgerBtn">
