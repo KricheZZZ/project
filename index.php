@@ -162,7 +162,8 @@ if (isset($_GET['route'])) {
             <li><a href="#calculator"><i class="fas fa-calculator"></i> Калькулятор</a></li>
             <li><a href="#gallery"><i class="fas fa-images"></i> Галерея</a></li>
             <li><a href="#contact"><i class="fas fa-address-book"></i> Заказ</a></li>
-            <li><a href="#" class="btn contact-btn"><i class="fas fa-phone-alt"></i> Заказать</a></li>
+           <li><a href="login.php"><i class="fas fa-address-book"></i> ВОЙТИ</a></li>
+            <!--<li><a href="#" class="btn contact-btn"><i class="fas fa-phone-alt"></i> Заказать</a></li> -->
         </ul>
         <div class="burger" id="burgerBtn">
             <div></div>
@@ -419,6 +420,7 @@ if (isset($_GET['route'])) {
             <li><a href="#calculator">Калькулятор</a></li>
             <li><a href="#gallery">Галерея</a></li>
             <li><a href="#contact">Заказ</a></li>
+            <p><a href="admin_orders.php">📋 Управление заказами (админ)</a></p>
         </ul>
         <div class="quote-section">
             <p class="inspiration-quote">
@@ -796,7 +798,7 @@ if (isset($_GET['route'])) {
         loadOrders();
     <?php endif; ?>
 </script>
-<script src="old.js.js"></script>
+<script src="old.js"></script>
 <script src="gallery.js"></script>
 <script src="ingridient.js"></script>
 <script src="mobileMenu.js"></script>
