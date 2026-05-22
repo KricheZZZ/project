@@ -11,7 +11,7 @@ function getDB() {
             $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (PDOException $e) {
             http_response_code(500);
-            die(json_encode(['error' => 'Ошибка подключения к БД']));
+            die(json_encode(['error' => 'Ошибка подключения к БД: ' . $e->getMessage()]));
         }
     }
     return $pdo;

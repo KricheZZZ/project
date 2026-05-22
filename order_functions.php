@@ -277,4 +277,24 @@ function getOrderById($order_id, $user_id) {
     }
     return $order;
 }
+
+function deleteOrder($order_id, $user_id) {
+    $pdo = getDB();
+    try {
+        $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ? AND application_id = ?");
+        $stmt->execute([$order_id, $user_id]);
+        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$order) {
+            return ['success' => false, 'errors' => ['auth' => 'Заказ не найден']];
+        }
+        if ($order['status'] !== 'new') {
+            return ['success' => false, 'errors' => ['status' => 'Можно удалять только заказы в статусе "new"']];
+        }
+        $pdo->prepare("DELETE FROM order_items WHERE order_id = ?")->execute([$order_id]);
+        $pdo->prepare("DELETE FROM orders WHERE id = ?")->execute([$order_id]);
+        return ['success' => true];
+    } catch (Exception $e) {
+        return ['success' => false, 'errors' => ['db' => $e->getMessage()]];
+    }
+}
 ?>
