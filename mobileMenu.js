@@ -5,7 +5,7 @@
     
     if (burgerBtn) {
         mobileMenu.className = 'mobile-menu';
-        mobileMenu.innerHTML = `
+        let menuItems = `
             <button class="menu-close" id="menuClose"><i class="fas fa-times"></i></button>
             <ul>
                 <li><a href="#"><i class="fas fa-home"></i> Главная</a></li>
@@ -13,9 +13,16 @@
                 <li><a href="#calculator"><i class="fas fa-calculator"></i> Калькулятор</a></li>
                 <li><a href="#gallery"><i class="fas fa-images"></i> Галерея</a></li>
                 <li><a href="#contact"><i class="fas fa-address-book"></i> Заказ</a></li>
-                <li><a href="#" id="mobile-contact-btn" class="btn"><i class="fas fa-phone-alt"></i> Заказать</a></li>
+        `;
+        if (isLoggedIn) {
+            menuItems += `<li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> Выйти</a></li>`;
+        } else {
+            menuItems += `<li><a href="login.php"><i class="fas fa-sign-in-alt"></i> Войти</a></li>`;
+        }
+        menuItems += `<li><a href="#contact" id="mobile-contact-btn" class="btn"><i class="fas fa-phone-alt"></i> Заказать</a></li>
             </ul>
         `;
+        mobileMenu.innerHTML = menuItems;
         
         mobileOverlay.className = 'mobile-overlay';
         
